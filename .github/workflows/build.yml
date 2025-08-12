@@ -14,10 +14,10 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'zulu' # Alternative distribution options are available.
+          distribution: 'zulu'
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@v4
         with:
@@ -37,11 +37,18 @@ jobs:
         run: |
           New-Item -Path .\.sonar\scanner -ItemType Directory
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+      - name: Download vswhere to find MSBuild
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/microsoft/vswhere/releases/latest/download/vswhere.exe -OutFile vswhere.exe
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: powershell
+        shell: pwsh
         run: |
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"cthulwhox_snake" /o:"cthulwhox" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
-          & "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" Snake_Csharp.csproj /t:Rebuild /p:Configuration=Release
+          $msbuildPath = .\vswhere.exe -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          $msbuildExe = Join-Path $msbuildPath "MSBuild\Current\Bin\MSBuild.exe"
+          Write-Host "Using MSBuild: $msbuildExe"
+          & $msbuildExe "Snake_Csharp.csproj" /t:Rebuild /p:Configuration=Release
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
